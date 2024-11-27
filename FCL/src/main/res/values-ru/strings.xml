@@ -362,11 +362,11 @@
     <string name="game_crash_reason_bootstrap_failed">"Аварийная ошибка произошла из-за мода. %1$s.
     
     Вы можете попробовать удалить или обновить его."</string>
-    <string name="game_crash_reason_config">Игра вылетела из-за того, что мод %1$s не может проанализировать свой файл конфигурации %2$s.</string>
+    <string name="game_crash_reason_config">Аварийная ошибка произошла из-за того, что мод %1$s не может проанализировать свой файл конфигурации %2$s.</string>
     <string name="game_crash_reason_debug_crash">"Аварийная ошибка произошла, потому что вы вызвали это вручную..
     
     Так что, вы, возможно, знаете, почему это произошло."</string>
-    <string name="game_crash_reason_duplicated_mod">"Игра не может запуститься из-за дублированных модов: %1$s.
+    <string name="game_crash_reason_duplicated_mod">"Запуск невозможен из-за дублированных модов: %1$s.
     
     %2$s
     
@@ -377,13 +377,13 @@
     
     Тип блока: %1$s
     Местоположение: %2$s"</string>
-    <string name="game_crash_reason_modmixin_failure">"Текущая игра не может продолжиться из-за неудачной инъекции мода.
-    Это, как правило, означает, что у мода есть ошибка или он несовместим с текущей средой.
-    Вы можете проверить лог, чтобы найти модуль с ошибкой."</string>
+    <string name="game_crash_reason_modmixin_failure">"Запуск невозможен из-за неудачной инъекции мода.
+    Это означает, что мод неисправный или несовместим с текущей средой.
+    Чтобы найти неисправность, вы можете проверить лог."</string>
     <string name="game_crash_reason_mod_repeat_installation">Поскольку в текущей игре неоднократно устанавливалось несколько одинаковых модов, каждый мод может появиться только один раз. Удалите повторяющиеся моды и перезапустите игру.</string>
     <string name="game_crash_reason_forge_error">"Forge, возможно, предоставил информацию об ошибке.
-    Вы можете просмотреть лог и провести соответствующую обработку на основе информации из отчета об ошибке.
-    Если вы не видите сообщение об ошибке, вы можете посмотреть отчет об ошибке, чтобы понять, как она произошла.
+    Вы можете просмотреть лог и найти ошибку.
+    Если нет сообщения об ошибке, посмотрите лог, чтобы понять, как она произошла.
     %1$s"</string>
     <string name="game_crash_reason_mod_resolution0">"Текущая игра не может продолжиться из-за некоторых проблем с модами.
     Вы можете проверить лог, чтобы найти модуль с ошибкой."</string>
@@ -393,7 +393,7 @@
     Вы можете просмотреть лог и выполнить соответствующую обработку согласно информации в логе в отчете об ошибке.
     Если вы не видите сообщение об ошибке, вы можете просмотреть отчет об ошибке, чтобы понять, как ошибка произошла."</string>
     <string name="game_crash_reason_need_jdk11">"Текущая игра не может продолжить выполнение из-за неподходящей версии Java.
-    Версия требует Java 11."</string>
+    Требуется Java 11."</string>
     <string name="game_crash_reason_mod_name">"Текущая игра не может продолжить выполнение из-за проблем с именем файла мода.
     Имена файлов модов должны содержать только заглавные и строчные буквы латинского алфавита (Aa~Zz), цифры (0~9), дефисы (-), подчеркивания (_), и точки (.) в полуширине английского алфавита.
     Пожалуйста, перейдите в папку с модами и добавьте во все неприемлемые имена файлов модов один из вышеуказанных допустимых символов."</string>
@@ -504,8 +504,8 @@
     
     При обращении к кому-то за помощью еще, пожалуйста, поделитесь с ними полным игровым логом и файлом отчета об аварийной ошибки!"</string>
     <string name="game_crash_reason_unsatisfied_link_error">Невозможно запустить Minecraft из-за отсутствия библиотек: %1$s.</string>
-    <string name="game_crash_title">Произошла ошибка. </string>
-    <string name="game_crash_title_add">Вместо скриншота отправьте полный файл журнала сбоев</string>
+    <string name="game_crash_title">Произошла ошибка.</string>
+    <string name="game_crash_title_add">Вместо скриншота отправьте лог</string>
 
     <string name="help">Помощь</string>
     <string name="help_category">Категории</string>
@@ -566,8 +566,8 @@
     <string name="menu_controls_edit_mode">Режим редактирования</string>
     <string name="menu_controls_show_boundary">Показать границы кнопок</string>
     <string name="menu_controls_hide_all">Скрыть все представления</string>
-    <string name="menu_controls_auto_fit">Авто настройки позиции</string>
-    <string name="menu_controls_auto_fit_dist">Авто настройка расстояния до позиции</string>
+    <string name="menu_controls_auto_fit">Автонастройки позиции</string>
+    <string name="menu_controls_auto_fit_dist">Автонастройка расстояния до позиции</string>
     <string name="menu_controls_groups">Просмотр групп</string>
     <string name="menu_controls_manage">Редактировать</string>
     <string name="menu_controls_current_view_group">Текущая группа просмотра</string>
@@ -781,6 +781,7 @@
     <string name="mods_restore">Восстановить</string>
     <string name="mods_url">Официальная страница</string>
     <string name="mods_update_modpack_mod_warning">Обновление модов в модпаке может привести к непоправимым результатам, возможно, к повреждению модпака, из-за которого он не сможет запуститься. Вы уверены, что хотите обновить?</string>
+    <string name="mods_screenshot_no_result">Нет доступных скриншотов</string>
 
     <string name="profile_shared">"Поделиться с папкой 
     (хранилище устройства)"</string>
@@ -811,18 +812,19 @@
     <string name="settings_advanced_dont_check_jvm_validity">Не проверять совместимость с JVM</string>
     <string name="settings_advanced_game_dir_default">По умолчанию (.minecraft/)</string>
     <string name="settings_advanced_game_dir_independent">Изолированно в (.minecraft/versions/&lt;instance name&gt;/, кроме ресурсов и библиотек)</string>
-    <string name="settings_advanced_java_permanent_generation_space">Размер PermGen</string>
-    <string name="settings_advanced_java_permanent_generation_space_prompt">желательно от 256 МБ до 512 МБ (можно оставить пустым)</string>
+    <string name="settings_advanced_java_permanent_generation_space">Объем постоянной памяти</string>
+    <string name="settings_advanced_java_permanent_generation_space_prompt">рекомендуется от 256 до 512 МБ (можно не указывать)</string>
     <string name="settings_advanced_jvm_args">JVM аргументы</string>
     <string name="settings_advanced_minecraft_arguments">Аргументы лаунчера</string>
     <string name="settings_advanced_minecraft_arguments_prompt">По умолчанию</string>
     <string name="settings_advanced_server_ip">Адрес сервера</string>
-    <string name="settings_advanced_server_ip_prompt">Авто присоединение после запуска</string>
+    <string name="settings_advanced_server_ip_prompt">Автоприсоединение после запуска</string>
 
     <string name="settings_fcl_controller">Контроллер</string>
     <string name="settings_fcl_controller_injector">Жесты на стороне сервера</string>
     <string name="settings_fcl_vulkan_driver_system">Разрешить Zink использовать системные драйвера Vulkan</string>
     <string name="settings_fcl_renderer">Рендер</string>
+    <string name="settings_fcl_pojav_bigcore">Принудительно использовать мощные ядра для рендеринга (Ядро Pojav)</string>
     <string name="settings_fcl_renderer_ltw">LTW (OpenGL 4.6, только 1.17+)</string>
     <string name="settings_fcl_renderer_vgpu">VGPU (OpenGL 2.1+, только 1.17-)</string>
     <string name="settings_fcl_renderer_freedreno">Freedreno (OpenGL 4.6, только для GPU a616-a660)</string>
@@ -854,11 +856,12 @@
     <string name="settings_launcher_launcher_log_export_success">Журналы экспортированы в %s</string>
     <string name="settings_launcher_theme">Тема</string>
     <string name="settings_launcher_theme2">Тема 2</string>
-    <string name="settings_launcher_background_lt">Фон лаунчера в светлом режиме</string>
-    <string name="settings_launcher_background_dk">Фон лаунчера в темном режиме</string>
+    <string name="settings_launcher_background_lt">Фон в светлой теме</string>
+    <string name="settings_launcher_background_dk">Фон в темной теме</string>
     <string name="settings_launcher_cursor">Курсор</string>
     <string name="settings_launcher_menu_icon">Иконка меню</string>
     <string name="settings_launcher_ignore_notch">Игнорировать вырез фронтальной камеры</string>
+    <string name="settings_launcher_close_skin_view">Скрыть модель скина</string>
     <string name="settings_launcher_animation_speed">Скорость анимации переходов</string>
 
     <string name="settings_memory">Память</string>
@@ -866,7 +869,7 @@
     <string name="settings_memory_allocate_auto_exceeded">%1$.1f ГБ минимум / %2$.1f ГБ выделенно (%3$.1f ГБ свободно)</string>
     <string name="settings_memory_allocate_manual">%1$.1f ГБ используется</string>
     <string name="settings_memory_allocate_manual_exceeded">%1$.1f ГБ используется (%3$.1f ГБ свободно)</string>
-    <string name="settings_memory_auto_allocate">Авто выделение ОЗУ</string>
+    <string name="settings_memory_auto_allocate">Автовыделение ОЗУ</string>
     <string name="settings_memory_lower_bound">Минимум ОЗУ</string>
     <string name="settings_memory_used_per_total">%1$.1f ГБ использованно / %2$.1f ГБ всего</string>
     <string name="settings_physical_memory">Размер физической памяти</string>
@@ -1023,6 +1026,6 @@
     <string name="gamepad_dpad">Крестовина</string>
     <string name="gamepad_button_binding">Привязка кнопок геймпада</string>
     <string name="joystick_r">Правый стик</string>
-    <string name="message_vulkan_driver_system">Текущий GPU — Adreno, не рекомендуется включать эту опцию.</string>
+    <string name="message_vulkan_driver_system">Текущий GPU Adreno, не рекомендуется включать эту опцию.</string>
     <string name="message_loading_controllers">Идет загрузка контроллеров...</string>
 </resources>

@@ -111,7 +111,7 @@ public class FCLBridge implements Serializable {
 
     public native void setenv(String key, String value);
 
-    public native int dlopen(String path);
+    public native long dlopen(String path);
 
     public native void setLdLibraryPath(String path);
 
@@ -224,7 +224,7 @@ public class FCLBridge implements Serializable {
         if (BACKEND_IS_BOAT) {
             pushEvent(System.nanoTime(), press ? KeyPress : KeyRelease, keyCode, keyChar);
         } else {
-            CallbackBridge.sendKeycode(keyCode, (char) keyChar, 0, 0, press);
+            CallbackBridge.sendKeycode(keyCode, (char) keyChar, 0, CallbackBridge.getCurrentMods(), press);
         }
     }
 
@@ -298,11 +298,10 @@ public class FCLBridge implements Serializable {
                 if (targetLink.startsWith("http")) {
                     uri = Uri.parse(targetLink);
                 } else {
-                    //can`t get authority by R.string.file_browser_provider
-                    uri = FileProvider.getUriForFile(context, "com.tungsten.fcl.provider", new File(targetLink));
+                    uri = FileProvider.getUriForFile(context, ((Activity) context).getApplication().getPackageName() + ".provider", new File(targetLink));
                 }
                 intent.setDataAndType(uri, "*/*");
-                context.startActivity(intent);
+                context.startActivity(Intent.createChooser(intent, ""));
             } catch (Exception e) {
                 Log.e("openLink error", "link:" + link + " err:" + e.toString());
             }
@@ -331,8 +330,8 @@ public class FCLBridge implements Serializable {
 
     public static void putClipboardData(String data, String mimeType) {
         Context context = FCLPath.CONTEXT;
-        ClipboardManager clipboard = (ClipboardManager) FCLPath.CONTEXT.getSystemService(Context.CLIPBOARD_SERVICE);
         ((Activity) context).runOnUiThread(() -> {
+            ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
             ClipData clipData = null;
             switch (mimeType) {
                 case "text/plain":

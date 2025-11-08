@@ -2,52 +2,57 @@ package com.tungsten.fclauncher;
 
 import android.content.Context;
 
-import androidx.annotation.NonNull;
+import com.mio.data.Renderer;
 
 import java.io.Serializable;
 
 public class FCLConfig implements Serializable {
 
-    public enum Renderer implements Serializable {
-        RENDERER_GL4ES("Holy-GL4ES:libgl4es_114.so:libEGL.so"),
-        RENDERER_VIRGL("VirGLRenderer:libOSMesa_81.so:libEGL.so"),
-        RENDERER_VGPU("VGPU:libvgpu.so:libEGL.so"),
-        RENDERER_ZINK("Zink:libOSMesa_8.so:libEGL.so"),
-        RENDERER_FREEDRENO("Freedreno:libOSMesa_8.so:libEGL.so"),
-        RENDERER_GL4ESPLUS("GL4ES+:libgl4es_plus.so:libEGL.so"),
-        RENDERER_CUSTOM("Custom:libCustom.so:libEGL.so");
+    public static class InstalledModLoaders {
+        private final boolean installForge;
+        private final boolean installCleanroom;
+        private final boolean installNeoForge;
+        private final boolean installOptiFine;
+        private final boolean installLiteLoader;
+        private final boolean installFabric;
+        private final boolean installQuilt;
 
-        private final String glInfo;
-        private String glVersion;
-
-        Renderer(String glInfo) {
-            this.glInfo = glInfo;
+        public InstalledModLoaders(boolean installForge,boolean installCleanroom, boolean installNeoForge, boolean installOptiFine, boolean installLiteLoader, boolean installFabric, boolean installQuilt) {
+            this.installForge = installForge;
+            this.installCleanroom = installCleanroom;
+            this.installNeoForge = installNeoForge;
+            this.installOptiFine = installOptiFine;
+            this.installLiteLoader = installLiteLoader;
+            this.installFabric = installFabric;
+            this.installQuilt = installQuilt;
         }
 
-        public String getGlLibName() {
-            return glInfo.split(":")[1];
+        public boolean isInstallForge() {
+            return installForge;
         }
 
-        public String getEglLibName() {
-            return glInfo.split(":")[2];
+        public boolean isInstallCleanroom() {
+            return installCleanroom;
         }
 
-        public String getGlInfo() {
-            return glInfo;
+        public boolean isInstallNeoForge() {
+            return installNeoForge;
         }
 
-        public void setGlVersion(String glVersion) {
-            this.glVersion = glVersion;
+        public boolean isInstallOptiFine() {
+            return installOptiFine;
         }
 
-        public String getGlVersion() {
-            return glVersion;
+        public boolean isInstallLiteLoader() {
+            return installLiteLoader;
         }
 
-        @NonNull
-        @Override
-        public String toString() {
-            return glInfo.split(":")[0];
+        public boolean isInstallFabric() {
+            return installFabric;
+        }
+
+        public boolean isInstallQuilt() {
+            return installQuilt;
         }
     }
 
@@ -57,8 +62,10 @@ public class FCLConfig implements Serializable {
     private final String workingDir;
     private final Renderer renderer;
     private final String[] args;
+
     private boolean useVKDriverSystem = false;
     private boolean pojavBigCore = false;
+    private InstalledModLoaders installedModLoaders = null;
 
     public FCLConfig(Context context, String logDir, String javaPath, String workingDir, Renderer renderer, String[] args) {
         this.context = context;
@@ -109,4 +116,11 @@ public class FCLConfig implements Serializable {
         return pojavBigCore;
     }
 
+    public void setInstalledModLoaders(InstalledModLoaders installedModLoaders) {
+        this.installedModLoaders = installedModLoaders;
+    }
+
+    public InstalledModLoaders getInstalledModLoaders() {
+        return installedModLoaders;
+    }
 }

@@ -19,11 +19,13 @@ package com.tungsten.fclcore.download.optifine;
 
 import static com.tungsten.fclcore.util.Lang.getOrDefault;
 
+import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 
+import com.tungsten.fcl.FCLApplication;
 import com.tungsten.fclauncher.utils.FCLPath;
 import com.tungsten.fclcore.download.DefaultDependencyManager;
 import com.tungsten.fclcore.download.LibraryAnalyzer;
@@ -137,20 +139,23 @@ public final class OptiFineInstallTask extends Task<Version> {
     @Override
     public void execute() throws Exception {
         String originalMainClass = version.resolve(dependencyManager.getGameRepository()).getMainClass();
-        if (!LibraryAnalyzer.VANILLA_MAIN.equals(originalMainClass) &&
-                !LibraryAnalyzer.LAUNCH_WRAPPER_MAIN.equals(originalMainClass) &&
-                !LibraryAnalyzer.MOD_LAUNCHER_MAIN.equals(originalMainClass) &&
-                !LibraryAnalyzer.BOOTSTRAP_LAUNCHER_MAIN.equals(originalMainClass))
+        if (!LibraryAnalyzer.FORGE_OPTIFINE_MAIN.contains(originalMainClass))
             throw new UnsupportedInstallationException(UnsupportedInstallationException.UNSUPPORTED_LAUNCH_WRAPPER);
 
         List<Library> libraries = new ArrayList<>(4);
         libraries.add(optiFineLibrary);
 
-        FileUtils.copyFile(dest, gameRepository.getLibraryFile(version, optiFineInstallerLibrary).toPath());
+        Path optiFineInstallerLibraryPath = gameRepository.getLibraryFile(version, optiFineInstallerLibrary).toPath();
+        FileUtils.copyFile(dest, optiFineInstallerLibraryPath);
+
+        try (FileSystem fs2 = CompressingUtils.createWritableZipFileSystem(optiFineInstallerLibraryPath)) {
+            Files.deleteIfExists(fs2.getPath("/META-INF/mods.toml"));
+        }
 
         // Install launch wrapper modified by OptiFine
         boolean hasLaunchWrapper = false;
         try (FileSystem fs = CompressingUtils.createReadOnlyZipFileSystem(dest)) {
+            Path optiFineLibraryPath = gameRepository.getLibraryFile(version, optiFineLibrary).toPath();
             if (Files.exists(fs.getPath("optifine/Patcher.class"))) {
                 String[] command = {
                         "-cp",
@@ -158,11 +163,15 @@ public final class OptiFineInstallTask extends Task<Version> {
                         "optifine.Patcher",
                         gameRepository.getVersionJar(version).getAbsolutePath(),
                         dest.toString(),
-                        gameRepository.getLibraryFile(version, optiFineLibrary).toString()
+                        optiFineLibraryPath.toString()
                 };
                 runJVMProcess(command, 8);
             } else {
-                FileUtils.copyFile(dest, gameRepository.getLibraryFile(version, optiFineLibrary).toPath());
+                FileUtils.copyFile(dest, optiFineLibraryPath);
+            }
+
+            try (FileSystem fs2 = CompressingUtils.createWritableZipFileSystem(optiFineLibraryPath)) {
+                Files.deleteIfExists(fs2.getPath("/META-INF/mods.toml"));
             }
 
             Path launchWrapper2 = fs.getPath("launchwrapper-2.0.jar");
@@ -223,6 +232,7 @@ public final class OptiFineInstallTask extends Task<Version> {
     }
 
     private void runJVMProcess(String[] command, int java) throws Exception {
+        Activity context = FCLApplication.getCurrentActivity();
         int exitCode;
         boolean listen = true;
         while (listen) {
@@ -236,12 +246,12 @@ public final class OptiFineInstallTask extends Task<Version> {
             server1.stop();
             latch.countDown();
         });
-        Intent service = new Intent(FCLPath.CONTEXT, ProcessService.class);
+        Intent service = new Intent(context, ProcessService.class);
         Bundle bundle = new Bundle();
         bundle.putStringArray("command", command);
         bundle.putInt("java", java);
         service.putExtras(bundle);
-        FCLPath.CONTEXT.startService(service);
+        context.startForegroundService(service);
         server.start();
         latch.await();
         exitCode = Integer.parseInt((String) server.getResult());

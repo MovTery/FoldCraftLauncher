@@ -25,12 +25,14 @@ import android.content.Context;
 import android.os.Build;
 
 import com.google.gson.GsonBuilder;
+import com.mio.data.Renderer;
 import com.tungsten.fclauncher.FCLConfig;
 import com.tungsten.fclauncher.FCLauncher;
 import com.tungsten.fclauncher.bridge.FCLBridge;
 import com.tungsten.fclauncher.utils.Architecture;
-import com.tungsten.fclcore.auth.AuthInfo;
 import com.tungsten.fclauncher.utils.FCLPath;
+import com.tungsten.fclcore.auth.AuthInfo;
+import com.tungsten.fclcore.download.LibraryAnalyzer;
 import com.tungsten.fclcore.game.Argument;
 import com.tungsten.fclcore.game.Arguments;
 import com.tungsten.fclcore.game.GameRepository;
@@ -45,10 +47,25 @@ import com.tungsten.fclcore.util.platform.CommandBuilder;
 import com.tungsten.fclcore.util.platform.OperatingSystem;
 import com.tungsten.fclcore.util.versioning.VersionNumber;
 
-import java.io.*;
+import org.jackhuang.hmcl.util.ServerAddress;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TimeZone;
+import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
@@ -74,9 +91,6 @@ public class DefaultLauncher extends Launcher {
                 && (options.getMaxMemory() == null || options.getMinMemory() <= options.getMaxMemory()))
             res.addDefault("-Xms", options.getMinMemory() + "m");
 
-        if (options.getMetaspace() != null && options.getMetaspace() > 0)
-            res.addDefault("-XX:MetaspaceSize=", options.getMetaspace() + "m");
-
         res.addAllDefaultWithoutParsing(options.getJavaArguments());
 
         Charset encoding = OperatingSystem.NATIVE_CHARSET;
@@ -88,8 +102,13 @@ public class DefaultLauncher extends Launcher {
                 LOG.log(Level.WARNING, "Bad file encoding", ex);
             }
         }
-        res.addDefault("-Dsun.stdout.encoding=", encoding.name());
-        res.addDefault("-Dsun.stderr.encoding=", encoding.name());
+        if (options.getJava().getVersion() < 19) {
+            res.addDefault("-Dsun.stdout.encoding=", encoding.name());
+            res.addDefault("-Dsun.stderr.encoding=", encoding.name());
+        } else {
+            res.addDefault("-Dstdout.encoding=", encoding.name());
+            res.addDefault("-Dstderr.encoding=", encoding.name());
+        }
 
         // Fix RCE vulnerability of log4j2
         res.addDefault("-Djava.rmi.server.useCodebaseOnly=", "true");
@@ -127,6 +146,8 @@ public class DefaultLauncher extends Launcher {
             res.addDefault("-Xss", "1m");
         }
 
+        res.addDefault("-XX:ActiveProcessorCount=", String.valueOf(Runtime.getRuntime().availableProcessors()));
+
         res.addDefault("-Dfml.ignoreInvalidMinecraftCertificates=", "true");
         res.addDefault("-Dfml.ignorePatchDiscrepancies=", "true");
 
@@ -137,10 +158,7 @@ public class DefaultLauncher extends Launcher {
 
         // FCL specific args
         JavaVersion javaVersion = options.getJava().isAuto() ? JavaVersion.getSuitableJavaVersion(version) : options.getJava();
-        if (javaVersion.getVersion() == JavaVersion.JAVA_VERSION_11 || javaVersion.getVersion() == JavaVersion.JAVA_VERSION_17 || javaVersion.getVersion() == JavaVersion.JAVA_VERSION_21) {
-            res.addDefault("-Dext.net.resolvPath=", javaVersion.getJavaPath(version) + "/resolv.conf");
-        }
-
+        res.addDefault("-Dext.net.resolvPath=", FCLPath.JAVA_PATH + "/resolv.conf");
         res.addDefault("-Djava.io.tmpdir=", FCLPath.CACHE_DIR);
         res.addDefault("-Dos.name=", "Linux");
         res.addDefault("-Dos.version=Android-", Build.VERSION.RELEASE);
@@ -158,10 +176,12 @@ public class DefaultLauncher extends Launcher {
         res.addDefault("-Dloader.disable_forked_guis=", "true");
         res.addDefault("-Duser.home=", options.getGameDir().getAbsolutePath());
         res.addDefault("-Duser.language=", System.getProperty("user.language"));
+        res.addDefault("-Duser.country=", Locale.getDefault().getCountry());
         res.addDefault("-Duser.timezone=", TimeZone.getDefault().getID());
         res.addDefault("-Dorg.lwjgl.vulkan.libname=", "libvulkan.so");
         res.addDefault("-Dsodium.checks.issue2561=", "false");
         res.addDefault("-Djdk.lang.Process.launchMechanism=", "FORK");
+        res.addDefault("-Dcpu.name=", FCLauncher.getSocName());
         File libJna = new File(FCLPath.RUNTIME_DIR, "jna");
         if (jnaVersion != null && !jnaVersion.isEmpty()) {
             libJna = new File(libJna, jnaVersion);
@@ -181,13 +201,17 @@ public class DefaultLauncher extends Launcher {
 //        if (repository.getGameVersion(version).isPresent() && repository.getGameVersion(version).get().startsWith("1.16")) {
 //
 //        }
-        res.add("-javaagent:" + FCLPath.LIB_FIXER_PATH);
+        res.add("-javaagent:" + FCLPath.LIB_PATCHER_PATH);
 
         Set<String> classpath = repository.getClasspath(version);
         classpath.add(FCLPath.MIO_LAUNCH_WRAPPER);
-        File jar = new File(repository.getVersionRoot(version.getId()), version.getId() + ".jar");
-//        if (!jar.exists() || !jar.isFile())
-//            throw new IOException("Minecraft jar does not exist");
+        File jar = repository.getVersionJar(version);
+        if (!jar.exists() || !jar.isFile()){
+            String inherits = version.getInheritsFrom();
+            if (!inherits.isEmpty()) {
+                jar = repository.getVersionJar(inherits);
+            }
+        }
         classpath.add(jar.getAbsolutePath());
 
         // Provided Minecraft arguments
@@ -233,16 +257,21 @@ public class DefaultLauncher extends Launcher {
         if (argumentsFromAuthInfo != null && argumentsFromAuthInfo.getGame() != null && !argumentsFromAuthInfo.getGame().isEmpty())
             res.addAll(Arguments.parseArguments(argumentsFromAuthInfo.getGame(), configuration, features));
 
-        if (StringUtils.isNotBlank(options.getServerIp())) {
-            String[] args = options.getServerIp().split(":");
-            if (VersionNumber.compare(repository.getGameVersion(version).orElse("0.0"), "1.20") < 0) {
-                res.add("--server");
-                res.add(args[0]);
-                res.add("--port");
-                res.add(args.length > 1 ? args[1] : "25565");
-            } else {
-                res.add("--quickPlayMultiplayer");
-                res.add(args[0] + ":" + (args.length > 1 ? args[1] : "25565"));
+        String address = options.getServerIp();
+        if (StringUtils.isNotBlank(address)) {
+            try {
+                ServerAddress parsed = ServerAddress.parse(address);
+                if (VersionNumber.compare(repository.getGameVersion(version).orElse("0.0"), "1.20") < 0) {
+                    res.add("--server");
+                    res.add(parsed.getHost());
+                    res.add("--port");
+                    res.add(parsed.getPort() >= 0 ? String.valueOf(parsed.getPort()) : "25565");
+                } else {
+                    res.add("--quickPlayMultiplayer");
+                    res.add(parsed.getPort() < 0 ? address + ":25565" : address);
+                }
+            } catch (IllegalArgumentException e) {
+                LOG.warning("Invalid server address: " + address + "\n" + e);
             }
         }
 
@@ -260,20 +289,19 @@ public class DefaultLauncher extends Launcher {
             javaVersion = options.getJava();
         }
         boolean isJava8 = javaVersion.getVersion() == JavaVersion.JAVA_VERSION_8;
-        boolean isJava11 = javaVersion.getVersion() == JavaVersion.JAVA_VERSION_11;
 
         res.addDefault("-Djava.awt.headless=", "false");
         res.addDefault("-Dcacio.managed.screensize=", options.getWidth() + "x" + options.getHeight());
         res.addDefault("-Dcacio.font.fontmanager=", "sun.awt.X11FontManager");
         res.addDefault("-Dcacio.font.fontscaler=", "sun.font.FreetypeFontScaler");
-        res.addDefault("-Dswing.defaultlaf=", "javax.swing.plaf.metal.MetalLookAndFeel");
+        res.addDefault("-Dswing.defaultlaf=", "javax.swing.plaf.nimbus.NimbusLookAndFeel");
         if (isJava8) {
             res.addDefault("-Dawt.toolkit=", "net.java.openjdk.cacio.ctc.CTCToolkit");
             res.addDefault("-Djava.awt.graphicsenv=", "net.java.openjdk.cacio.ctc.CTCGraphicsEnvironment");
         } else {
             res.addDefault("-Dawt.toolkit=", "com.github.caciocavallosilano.cacio.ctc.CTCToolkit");
             res.addDefault("-Djava.awt.graphicsenv=", "com.github.caciocavallosilano.cacio.ctc.CTCGraphicsEnvironment");
-            res.addDefault("-Djava.system.class.loader=", "com.github.caciocavallosilano.cacio.ctc.CTCPreloadClassLoader");
+            res.addDefault("-javaagent:", FCLPath.CACIOCAVALLO_17_DIR + "/cacio-agent.jar");
 
             res.add("--add-exports=java.desktop/java.awt=ALL-UNNAMED");
             res.add("--add-exports=java.desktop/java.awt.peer=ALL-UNNAMED");
@@ -295,7 +323,7 @@ public class DefaultLauncher extends Launcher {
 
         StringBuilder cacioClasspath = new StringBuilder();
         cacioClasspath.append("-Xbootclasspath/").append(isJava8 ? "p" : "a");
-        File cacioDir = new File(isJava8 ? FCLPath.CACIOCAVALLO_8_DIR : isJava11 ? FCLPath.CACIOCAVALLO_11_DIR : FCLPath.CACIOCAVALLO_17_DIR);
+        File cacioDir = new File(isJava8 ? FCLPath.CACIOCAVALLO_8_DIR : FCLPath.CACIOCAVALLO_17_DIR);
         if (cacioDir.exists() && cacioDir.isDirectory()) {
             for (File file : Objects.requireNonNull(cacioDir.listFiles())) {
                 if (file.getName().endsWith(".jar")) {
@@ -333,7 +361,7 @@ public class DefaultLauncher extends Launcher {
                         return it.getId().equals(versionTypeId);
                     })
                     .findFirst();
-            return mapInfo.map(it -> it.getArgument().getArgument(version)).orElse(null);
+            return mapInfo.map(it -> it.getArgument().getArgument(version, repository.getGameVersion(version).orElse(null))).orElse(null);
         } catch (IOException e) {
             LOG.log(Level.WARNING, "Failed to get game map", e);
             return null;
@@ -397,12 +425,14 @@ public class DefaultLauncher extends Launcher {
     }
 
     protected Map<String, String> getConfigurations() {
+        String uuid = options.getUuid().replace("-", "");
+        boolean customUuid = uuid.length() == 32;
         return mapOf(
                 // defined by Minecraft official launcher
                 pair("${auth_player_name}", authInfo.getUsername()),
                 pair("${auth_session}", authInfo.getAccessToken()),
                 pair("${auth_access_token}", authInfo.getAccessToken()),
-                pair("${auth_uuid}", UUIDTypeAdapter.fromUUID(authInfo.getUUID())),
+                pair("${auth_uuid}", customUuid ? options.getUuid() : UUIDTypeAdapter.fromUUID(authInfo.getUUID())),
                 pair("${version_name}", Optional.ofNullable(options.getVersionName()).orElse(version.getId())),
                 pair("${profile_name}", Optional.ofNullable(options.getProfileName()).orElse("Minecraft")),
                 pair("${version_type}", Optional.ofNullable(options.getVersionType()).orElse(version.getType().getId())),
@@ -439,7 +469,9 @@ public class DefaultLauncher extends Launcher {
 
         String[] finalArgs = rawCommandLine.toArray(new String[0]);
 
-        FCLConfig.Renderer renderer = options.getRenderer();
+        LibraryAnalyzer analyzer = LibraryAnalyzer.analyze(version, repository.getGameVersion(version).orElse(null));
+
+        Renderer renderer = options.getRenderer();
         FCLConfig config = new FCLConfig(
                 context,
                 FCLPath.LOG_DIR,
@@ -450,6 +482,15 @@ public class DefaultLauncher extends Launcher {
         );
         config.setUseVKDriverSystem(options.isVKDriverSystem());
         config.setPojavBigCore(options.isPojavBigCore());
+        config.setInstalledModLoaders(new FCLConfig.InstalledModLoaders(
+                analyzer.has(LibraryAnalyzer.LibraryType.FORGE),
+                analyzer.has(LibraryAnalyzer.LibraryType.CLEANROOM),
+                analyzer.has(LibraryAnalyzer.LibraryType.NEO_FORGE),
+                analyzer.has(LibraryAnalyzer.LibraryType.OPTIFINE),
+                analyzer.has(LibraryAnalyzer.LibraryType.LITELOADER),
+                analyzer.has(LibraryAnalyzer.LibraryType.FABRIC),
+                analyzer.has(LibraryAnalyzer.LibraryType.QUILT)
+        ));
         return FCLauncher.launchMinecraft(config);
     }
 

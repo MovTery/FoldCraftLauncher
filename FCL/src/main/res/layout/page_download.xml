@@ -3,7 +3,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/ui_bg_color"
     android:paddingStart="10dp"
     android:paddingTop="10dp"
     android:paddingEnd="10dp">
@@ -77,6 +76,23 @@
                     android:layout_marginTop="10dp" />
 
                 <com.tungsten.fcllibrary.component.view.FCLTextView
+                    android:id="@+id/modloaderText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:singleLine="true"
+                    android:text="@string/modloader"
+                    android:visibility="gone"
+                    app:auto_text_tint="true" />
+
+                <com.tungsten.fcllibrary.component.view.FCLSpinner
+                    android:id="@+id/modloader"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:visibility="gone" />
+
+                <com.tungsten.fcllibrary.component.view.FCLTextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
@@ -113,28 +129,19 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
+            android:singleLine="true"
             android:text="@string/install_modpack"
-            android:singleLine="true"
-            android:visibility="gone"
-            app:ripple="true" />
-
-        <com.tungsten.fcllibrary.component.view.FCLButton
-            android:id="@+id/show_incompatible"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/view_incompatible"
-            android:singleLine="true"
             android:visibility="gone"
             app:ripple="true" />
 
         <com.tungsten.fcllibrary.component.view.FCLButton
             android:id="@+id/search"
+            android:layout_marginBottom="8dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="@string/search"
             android:singleLine="true"
+            android:text="@string/search"
             app:ripple="true" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>
@@ -145,9 +152,9 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="10dp"
         android:orientation="horizontal"
-        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/left">
+        app:layout_constraintStart_toEndOf="@+id/left"
+        app:layout_constraintTop_toTopOf="parent">
 
         <com.tungsten.fcllibrary.component.view.FCLTextView
             android:id="@+id/page"
@@ -207,36 +214,38 @@
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 
-    <RelativeLayout
+    <ListView
+        android:id="@+id/list"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginStart="10dp"
         android:layout_marginTop="10dp"
+        android:divider="@android:color/transparent"
+        android:dividerHeight="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/left"
-        app:layout_constraintTop_toBottomOf="@id/list_layout">
+        app:layout_constraintTop_toBottomOf="@id/list_layout" />
 
-        <ListView
-            android:id="@+id/list"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:divider="@android:color/transparent"
-            android:dividerHeight="0dp" />
+    <com.tungsten.fcllibrary.component.view.FCLProgressBar
+        android:id="@+id/progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        app:layout_constraintBottom_toBottomOf="@id/list"
+        app:layout_constraintEnd_toEndOf="@id/list"
+        app:layout_constraintStart_toStartOf="@id/list"
+        app:layout_constraintTop_toTopOf="@id/list" />
 
-        <com.tungsten.fcllibrary.component.view.FCLProgressBar
-            android:id="@+id/progress"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true" />
-
-        <com.tungsten.fcllibrary.component.view.FCLImageButton
-            android:id="@+id/retry"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:src="@drawable/ic_baseline_refresh_24" />
-
-    </RelativeLayout>
+    <com.tungsten.fcllibrary.component.view.FCLImageButton
+        android:id="@+id/retry"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:src="@drawable/ic_baseline_refresh_24"
+        app:layout_constraintBottom_toBottomOf="@id/list"
+        app:layout_constraintEnd_toEndOf="@id/list"
+        app:layout_constraintStart_toStartOf="@id/list"
+        app:layout_constraintTop_toTopOf="@id/list" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

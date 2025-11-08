@@ -9,14 +9,15 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.net.Uri;
 import android.view.View;
+import android.widget.CompoundButton;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
+import android.widget.ScrollView;
 import android.widget.Toast;
-
-import androidx.appcompat.widget.LinearLayoutCompat;
 
 import com.tungsten.fcl.R;
 import com.tungsten.fcl.activity.MainActivity;
+import com.tungsten.fcl.game.FCLGameRepository;
 import com.tungsten.fcl.setting.Profile;
 import com.tungsten.fcl.ui.PageManager;
 import com.tungsten.fcl.ui.TaskDialog;
@@ -34,6 +35,7 @@ import com.tungsten.fclcore.fakefx.beans.property.SimpleBooleanProperty;
 import com.tungsten.fclcore.fakefx.beans.property.SimpleListProperty;
 import com.tungsten.fclcore.fakefx.collections.FXCollections;
 import com.tungsten.fclcore.fakefx.collections.ObservableList;
+import com.tungsten.fclcore.game.Version;
 import com.tungsten.fclcore.mod.LocalModFile;
 import com.tungsten.fclcore.mod.ModManager;
 import com.tungsten.fclcore.mod.RemoteMod;
@@ -47,6 +49,7 @@ import com.tungsten.fcllibrary.browser.options.SelectionMode;
 import com.tungsten.fcllibrary.component.dialog.FCLAlertDialog;
 import com.tungsten.fcllibrary.component.ui.FCLCommonPage;
 import com.tungsten.fcllibrary.component.view.FCLButton;
+import com.tungsten.fcllibrary.component.view.FCLCheckBox;
 import com.tungsten.fcllibrary.component.view.FCLEditText;
 import com.tungsten.fcllibrary.component.view.FCLLinearLayout;
 import com.tungsten.fcllibrary.component.view.FCLProgressBar;
@@ -59,7 +62,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -84,7 +86,7 @@ public class ModListPage extends FCLCommonPage implements ManageUI.VersionLoadab
     private boolean isSearching = false;
 
     private FCLTextView warningText;
-    private LinearLayoutCompat left;
+    private ScrollView left;
     private RelativeLayout right;
     private FCLEditText searchBar;
     private FCLButton searchButton;
@@ -99,6 +101,9 @@ public class ModListPage extends FCLCommonPage implements ManageUI.VersionLoadab
     private FCLButton cancelButton;
     private FCLProgressBar progressBar;
     private ListView listView;
+
+    private FCLCheckBox enabled;
+    private FCLCheckBox disabled;
 
     private final LocalModListAdapter adapter;
 
@@ -132,6 +137,8 @@ public class ModListPage extends FCLCommonPage implements ManageUI.VersionLoadab
         cancelButton = findViewById(R.id.cancel);
         progressBar = findViewById(R.id.progress);
         listView = findViewById(R.id.list);
+        enabled = findViewById(R.id.enabled);
+        disabled = findViewById(R.id.disabled);
 
         searchButton.setOnClickListener(this);
         addButton.setOnClickListener(this);
@@ -141,6 +148,11 @@ public class ModListPage extends FCLCommonPage implements ManageUI.VersionLoadab
         deleteButton.setOnClickListener(this);
         selectAllButton.setOnClickListener(this);
         cancelButton.setOnClickListener(this);
+        CompoundButton.OnCheckedChangeListener listener = (compoundButton, b) -> {
+            refresh();
+        };
+        enabled.setOnCheckedChangeListener(listener);
+        disabled.setOnCheckedChangeListener(listener);
     }
 
     @Override
@@ -193,7 +205,9 @@ public class ModListPage extends FCLCommonPage implements ManageUI.VersionLoadab
         adapter.selectedItemsProperty().clear();
         cancelSearch();
 
-        libraryAnalyzer = LibraryAnalyzer.analyze(profile.getRepository().getResolvedPreservingPatchesVersion(version));
+        FCLGameRepository repository = profile.getRepository();
+        Version resolved = repository.getResolvedPreservingPatchesVersion(versionId);
+        libraryAnalyzer = LibraryAnalyzer.analyze(resolved, repository.getGameVersion(resolved).orElse(null));
         setModded(libraryAnalyzer.hasModLoader());
         loadMods(profile.getRepository().getModManager(version));
     }
@@ -263,7 +277,7 @@ public class ModListPage extends FCLCommonPage implements ManageUI.VersionLoadab
                 synchronized (ModListPage.this) {
                     setLoading(true);
                     modManager.refreshMods();
-                    return new ArrayList<>(modManager.getMods());
+                    return modManager.getMods().stream().map(it -> new ModInfoObject(getContext(), it)).collect(Collectors.toList());
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -271,11 +285,16 @@ public class ModListPage extends FCLCommonPage implements ManageUI.VersionLoadab
         }, Schedulers.defaultScheduler()).whenCompleteAsync((list, exception) -> {
             setLoading(false);
             if (exception == null)
-                itemsProperty.setAll(list.stream().map(it -> new ModInfoObject(getContext(), it)).sorted().collect(Collectors.toList()));
+                try {
+                    itemsProperty.setAll(list.stream().filter(modInfoObject -> {
+                        boolean active = modInfoObject.getModInfo().isActive();
+                        return (enabled.isChecked() && active) || (disabled.isChecked() && !active);
+                    }).collect(Collectors.toList()));
+                } catch (Throwable e) {
+                    LOG.log(Level.SEVERE, "Failed to load local mod list", e);
+                }
             else
                 LOG.log(Level.SEVERE, "Failed to load local mod list", exception);
-
-            System.gc();
         }, Schedulers.androidUIThread());
     }
 
@@ -425,7 +444,7 @@ public class ModListPage extends FCLCommonPage implements ManageUI.VersionLoadab
 
     public void download() {
         MainActivity.getInstance().refreshMenuView(null);
-        MainActivity.getInstance().bind.download.setSelected(true);
+        MainActivity.getInstance().binding.download.setSelected(true);
         DownloadPageManager.getInstance().switchPage(DownloadPageManager.PAGE_ID_DOWNLOAD_MOD);
     }
 
@@ -481,7 +500,7 @@ public class ModListPage extends FCLCommonPage implements ManageUI.VersionLoadab
         }
     }
 
-    static class ModInfoObject implements Comparable<ModInfoObject> {
+    public static class ModInfoObject {
         private final BooleanProperty active;
         private final LocalModFile localModFile;
         private final String title;
@@ -505,7 +524,7 @@ public class ModListPage extends FCLCommonPage implements ManageUI.VersionLoadab
                 message.append(", ").append(context.getString(R.string.archive_author)).append(": ").append(localModFile.getAuthors());
             this.message = message.toString();
 
-            this.mod = ModTranslations.MOD.getModById(localModFile.getId());
+            this.mod = ModTranslations.MOD.getMod(localModFile.getId(), localModFile.getName());
         }
 
         public BooleanProperty getActive() {
@@ -526,11 +545,6 @@ public class ModListPage extends FCLCommonPage implements ManageUI.VersionLoadab
 
         public ModTranslations.Mod getMod() {
             return mod;
-        }
-
-        @Override
-        public int compareTo(@NotNull ModInfoObject o) {
-            return localModFile.getFileName().toLowerCase().compareTo(o.localModFile.getFileName().toLowerCase());
         }
 
         public RemoteMod getRemoteMod() {

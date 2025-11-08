@@ -17,13 +17,12 @@
  */
 package com.tungsten.fclcore.game;
 
-import com.tungsten.fclauncher.FCLConfig;
+import com.mio.data.Renderer;
 
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.Serializable;
-import java.net.Proxy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -41,14 +40,14 @@ public class LaunchOptions implements Serializable {
     private final List<String> javaAgents = new ArrayList<>(0);
     private Integer minMemory;
     private Integer maxMemory;
-    private Integer metaspace;
     private Integer width;
     private Integer height;
     private String serverIp;
     private boolean beGesture;
     private boolean vulkanDriverSystem;
     private boolean pojavBigCore;
-    private FCLConfig.Renderer renderer;
+    private Renderer renderer;
+    private String uuid;
 
     /**
      * The game directory
@@ -131,15 +130,6 @@ public class LaunchOptions implements Serializable {
     }
 
     /**
-     * The maximum metaspace memory that the JVM can allocate.
-     * For Java 7 -XX:PermSize and Java 8 -XX:MetaspaceSize
-     * Containing class instances.
-     */
-    public Integer getMetaspace() {
-        return metaspace;
-    }
-
-    /**
      * The initial game window width
      */
     public Integer getWidth() {
@@ -181,8 +171,12 @@ public class LaunchOptions implements Serializable {
     /**
      * Renderer
      */
-    public FCLConfig.Renderer getRenderer() {
+    public Renderer getRenderer() {
         return renderer;
+    }
+
+    public String getUuid() {
+        return uuid;
     }
 
     public static class Builder {
@@ -270,15 +264,6 @@ public class LaunchOptions implements Serializable {
         }
 
         /**
-         * The maximum metaspace memory that the JVM can allocate.
-         * For Java 7 -XX:PermSize and Java 8 -XX:MetaspaceSize
-         * Containing class instances.
-         */
-        public Integer getMetaspace() {
-            return options.metaspace;
-        }
-
-        /**
          * The initial game window width
          */
         public Integer getWidth() {
@@ -316,7 +301,7 @@ public class LaunchOptions implements Serializable {
         /**
          * Renderer
          */
-        public FCLConfig.Renderer getRenderer() {
+        public Renderer getRenderer() {
             return options.renderer;
         }
 
@@ -379,11 +364,6 @@ public class LaunchOptions implements Serializable {
             return this;
         }
 
-        public Builder setMetaspace(Integer metaspace) {
-            options.metaspace = metaspace;
-            return this;
-        }
-
         public Builder setWidth(Integer width) {
             options.width = width;
             return this;
@@ -409,13 +389,18 @@ public class LaunchOptions implements Serializable {
             return this;
         }
 
-        public Builder setRenderer(FCLConfig.Renderer renderer) {
+        public Builder setRenderer(Renderer renderer) {
             options.renderer = renderer;
             return this;
         }
 
         public Builder setPojavBigCore(boolean pojavBigCore) {
             options.pojavBigCore = pojavBigCore;
+            return this;
+        }
+
+        public Builder setUUid(String uuid) {
+            options.uuid = uuid;
             return this;
         }
 

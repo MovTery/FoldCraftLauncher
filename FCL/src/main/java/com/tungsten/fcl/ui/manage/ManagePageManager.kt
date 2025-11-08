@@ -28,22 +28,16 @@ class ManagePageManager(
     var profile: Profile? = null
     var version: String? = null
 
-    private lateinit var managePage: ManagePage
-    private val versionSettingPage: VersionSettingPage by lazy {
-        VersionSettingPage(
-            context,
-            PAGE_ID_MANAGE_SETTING,
-            parent,
-            R.layout.page_version_setting,
-            false
-        )
+    private lateinit var versionSettingPage: VersionSettingPage
+    private val managePage: ManagePage by lazy {
+        ManagePage(context, PAGE_ID_MANAGE_MANAGE, parent, R.layout.page_manage_version)
     }
     private val installerListPage: InstallerListPage by lazy {
         InstallerListPage(
             context,
             PAGE_ID_MANAGE_INSTALL,
             parent,
-            R.layout.page_installer_list
+            R.layout.page_manage_auto_install
         )
     }
     private val modListPage: ModListPage by lazy {
@@ -51,7 +45,7 @@ class ManagePageManager(
             context,
             PAGE_ID_MANAGE_MOD,
             parent,
-            R.layout.page_mod_list
+            R.layout.page_manage_mod
         )
     }
     private val worldListPage: WorldListPage by lazy {
@@ -59,7 +53,7 @@ class ManagePageManager(
             context,
             PAGE_ID_MANAGE_WORLD,
             parent,
-            R.layout.page_world_list
+            R.layout.page_manage_world
         )
     }
 
@@ -68,20 +62,25 @@ class ManagePageManager(
     }
 
     override fun init(listener: UIListener?) {
-        managePage =
-            ManagePage(context, PAGE_ID_MANAGE_MANAGE, parent, R.layout.page_manage)
+        versionSettingPage = VersionSettingPage(
+            context,
+            PAGE_ID_MANAGE_SETTING,
+            parent,
+            R.layout.page_version_setting,
+            false
+        )
         listener?.onLoad()
     }
 
     override fun getAllPages(): ArrayList<FCLCommonPage> {
         return ArrayList<FCLCommonPage>().apply {
-            add(managePage)
+            add(versionSettingPage)
         }
     }
 
     override fun createPageById(id: Int): FCLCommonPage? {
         val page: FCLCommonPage? = when (id) {
-            PAGE_ID_MANAGE_SETTING -> versionSettingPage
+            PAGE_ID_MANAGE_MANAGE -> managePage
             PAGE_ID_MANAGE_INSTALL -> installerListPage
             PAGE_ID_MANAGE_MOD -> modListPage
             PAGE_ID_MANAGE_WORLD -> worldListPage

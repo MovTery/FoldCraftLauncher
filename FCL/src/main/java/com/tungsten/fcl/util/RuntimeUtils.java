@@ -20,7 +20,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.logging.Level;
 
@@ -28,6 +27,11 @@ public class RuntimeUtils {
 
     public static boolean isLatest(String targetDir, String srcDir) throws IOException {
         File targetFile = new File(targetDir + "/version");
+        try (InputStream stream = RuntimeUtils.class.getResourceAsStream(srcDir + "/version")) {
+            if (stream == null) {
+                return true;
+            }
+        }
         long version = Long.parseLong(IOUtils.readFullyAsString(RuntimeUtils.class.getResourceAsStream(srcDir + "/version")));
         return targetFile.exists() && Long.parseLong(FileUtils.readText(targetFile)) == version;
     }
@@ -134,15 +138,22 @@ public class RuntimeUtils {
     public static void patchJava(Context context, String javaPath) throws IOException {
         Pack200Utils.unpack(context.getApplicationInfo().nativeLibraryDir, javaPath);
         File dest = new File(javaPath);
-        if(!dest.exists())
+        if (!dest.exists())
             return;
-        String libFolder = FCLauncher.getJreLibDir(javaPath);
+        String libFolder = FCLauncher.getJavaLibDir(javaPath);
+        if (FCLauncher.isJDK8(javaPath)) {
+            libFolder = "/jre" + libFolder;
+        }
         File ftIn = new File(dest, libFolder + "/libfreetype.so.6");
         File ftOut = new File(dest, libFolder + "/libfreetype.so");
         if (ftIn.exists() && (!ftOut.exists() || ftIn.length() != ftOut.length())) {
             ftIn.renameTo(ftOut);
         }
-        File fileLib = new File(dest, "/" + libFolder + "/libawt_xawt.so");
+        ftIn = new File(dest, FCLauncher.getJavaLibDir(javaPath) + "/libfreetype.so");
+        if (FCLauncher.isJDK8(javaPath) && ftIn.exists()) {
+            ftIn.renameTo(ftOut);
+        }
+        File fileLib = new File(dest, libFolder + "/libawt_xawt.so");
         fileLib.delete();
         FileUtils.copyFile(new File(context.getApplicationInfo().nativeLibraryDir, "libawt_xawt.so"), fileLib);
     }

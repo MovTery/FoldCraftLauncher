@@ -22,6 +22,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -32,6 +33,8 @@ import java.util.Objects;
  * @see <a href="http://maven.apache.org/pom.html#Version_Order_Specification">Specification</a>
  */
 public final class VersionNumber implements Comparable<VersionNumber> {
+
+    public static final VersionNumber ZERO = asVersion("0");
 
     public static VersionNumber asVersion(String version) {
         Objects.requireNonNull(version);
@@ -81,6 +84,18 @@ public final class VersionNumber implements Comparable<VersionNumber> {
         } while (cont);
 
         return true;
+    }
+
+    public static VersionRange<VersionNumber> between(String minimum, String maximum) {
+        return VersionRange.between(asVersion(minimum), asVersion(maximum));
+    }
+
+    public static VersionRange<VersionNumber> atLeast(String minimum) {
+        return VersionRange.atLeast(asVersion(minimum));
+    }
+
+    public static VersionRange<VersionNumber> atMost(String maximum) {
+        return VersionRange.atMost(asVersion(maximum));
     }
 
     private interface Item {
@@ -206,9 +221,17 @@ public final class VersionNumber implements Comparable<VersionNumber> {
      */
     private static final class StringItem implements Item {
         private final String value;
+        private final boolean pre;
 
         StringItem(String value) {
             this.value = value;
+
+            String lower = value.trim().toLowerCase(Locale.ROOT);
+            this.pre = lower.startsWith("alpha")
+                    || lower.startsWith("beta")
+                    || lower.startsWith("pre")
+                    || lower.startsWith("rc")
+                    || lower.startsWith("experimental");
         }
 
         public int getType() {
@@ -221,8 +244,8 @@ public final class VersionNumber implements Comparable<VersionNumber> {
 
         public int compareTo(Item item) {
             if (item == null) {
-                // 1-string > 1
-                return 1;
+                // 1-beta < 1 < 1-string
+                return pre ? -1 : 1;
             }
             switch (item.getType()) {
                 case LONG_ITEM:
@@ -473,14 +496,6 @@ public final class VersionNumber implements Comparable<VersionNumber> {
 
     public String getCanonical() {
         return canonical;
-    }
-
-    public VersionNumber min(VersionNumber that) {
-        return this.compareTo(that) <= 0 ? this : that;
-    }
-
-    public VersionNumber max(VersionNumber that) {
-        return this.compareTo(that) >= 0 ? this : that;
     }
 
     @Override

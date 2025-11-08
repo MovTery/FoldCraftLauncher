@@ -17,10 +17,12 @@
  */
 package com.tungsten.fcl.game;
 
+import static android.content.Context.MODE_PRIVATE;
 import static com.tungsten.fcl.util.AndroidUtils.getLocalizedText;
 import static com.tungsten.fcl.util.AndroidUtils.hasStringId;
 import static com.tungsten.fclcore.util.Logging.LOG;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -28,6 +30,13 @@ import android.view.View;
 
 import androidx.annotation.NonNull;
 
+import com.mio.JavaManager;
+import com.mio.data.Renderer;
+import com.mio.manager.RendererManager;
+import com.mio.minecraft.ModCheckException;
+import com.mio.minecraft.ModChecker;
+import com.mio.util.ParseUtil;
+import com.tungsten.fcl.FCLApplication;
 import com.tungsten.fcl.R;
 import com.tungsten.fcl.activity.JVMActivity;
 import com.tungsten.fcl.control.MenuType;
@@ -52,9 +61,11 @@ import com.tungsten.fclcore.download.game.LibraryDownloadException;
 import com.tungsten.fclcore.game.JavaVersion;
 import com.tungsten.fclcore.game.LaunchOptions;
 import com.tungsten.fclcore.game.Version;
+import com.tungsten.fclcore.mod.LocalModFile;
 import com.tungsten.fclcore.mod.ModpackCompletionException;
 import com.tungsten.fclcore.mod.ModpackConfiguration;
 import com.tungsten.fclcore.mod.ModpackProvider;
+import com.tungsten.fclcore.mod.server.ServerModpackProvider;
 import com.tungsten.fclcore.task.DownloadException;
 import com.tungsten.fclcore.task.Schedulers;
 import com.tungsten.fclcore.task.Task;
@@ -65,6 +76,7 @@ import com.tungsten.fclcore.util.LibFilter;
 import com.tungsten.fclcore.util.Logging;
 import com.tungsten.fclcore.util.StringUtils;
 import com.tungsten.fclcore.util.io.ResponseCodeException;
+import com.tungsten.fclcore.util.versioning.VersionNumber;
 import com.tungsten.fcllibrary.component.dialog.FCLAlertDialog;
 import com.tungsten.fcllibrary.component.dialog.FCLDialog;
 import com.tungsten.fcllibrary.component.view.FCLButton;
@@ -80,7 +92,10 @@ import java.net.URL;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -134,19 +149,20 @@ public final class LauncherHelper {
                                 try {
                                     ModpackConfiguration<?> configuration = ModpackHelper.readModpackConfiguration(repository.getModpackConfiguration(selectedVersion));
                                     ModpackProvider provider = ModpackHelper.getProviderByType(configuration.getType());
-                                    if (provider == null) return null;
-                                    else
+                                    if (provider == null)
+                                        return null;
+                                    else if (configuration.getType().equals(ServerModpackProvider.INSTANCE.getName()))
                                         return provider.createCompletionTask(dependencyManager, selectedVersion);
-                                } catch (IOException e) {
-                                    return null;
+                                } catch (IOException ignore) {
                                 }
+                                return null;
                             }),
                             Task.composeAsync(() -> null)
                     );
                 }).withStage("launch.state.dependencies")
                 .thenComposeAsync(() -> {
-                    try (InputStream input = LauncherHelper.class.getResourceAsStream("/assets/game/MioLibFixer.jar")) {
-                        Files.copy(input, new File(FCLPath.LIB_FIXER_PATH).toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    try (InputStream input = LauncherHelper.class.getResourceAsStream("/assets/game/MioLibPatcher.jar")) {
+                        Files.copy(input, new File(FCLPath.LIB_PATCHER_PATH).toPath(), StandardCopyOption.REPLACE_EXISTING);
                     } catch (IOException e) {
                         Logging.LOG.log(Level.WARNING, "Unable to unpack MioLibFixer.jar", e);
                     }
@@ -163,38 +179,48 @@ public final class LauncherHelper {
                 .thenComposeAsync(() -> gameVersion.map(s -> new GameVerificationFixTask(dependencyManager, s, version.get())).orElse(null))
                 .thenComposeAsync(() -> logIn(context, account).withStage("launch.state.logging_in"))
                 .thenComposeAsync(authInfo -> Task.supplyAsync(() -> {
-                    LaunchOptions launchOptions = repository.getLaunchOptions(selectedVersion, javaVersionRef.get(), profile.getGameDir(), javaAgents);
-                    FCLGameLauncher launcher = new FCLGameLauncher(
-                            context,
-                            repository,
-                            version.get(),
-                            authInfo,
-                            launchOptions
-                    );
-                    version.get().getLibraries().forEach(library -> {
-                        if (library.getName().startsWith("net.java.dev.jna:jna:")) {
-                            launcher.setJnaVersion(library.getVersion());
-                        }
-                    });
-                    return launcher;
-                }).thenComposeAsync(launcher -> { // launcher is prev task's result
-                    return Task.supplyAsync(launcher::launch);
-                }).thenAcceptAsync(fclBridge -> Schedulers.androidUIThread().execute(() -> {
-                    CallbackBridge.nativeSetUseInputStackQueue(version.get().getArguments().isPresent());
-                    Intent intent = new Intent(context, JVMActivity.class);
-                    fclBridge.setScaleFactor(repository.getVersionSetting(selectedVersion).getScaleFactor());
-                    fclBridge.setController(repository.getVersionSetting(selectedVersion).getController());
-                    fclBridge.setGameDir(repository.getRunDirectory(selectedVersion).getAbsolutePath());
-                    fclBridge.setRenderer(repository.getVersionSetting(selectedVersion).getRenderer().toString());
-                    fclBridge.setJava(Integer.toString(javaVersionRef.get().getVersion()));
-                    checkMod(fclBridge);
-                    JVMActivity.setFCLBridge(fclBridge, MenuType.GAME);
-                    Bundle bundle = new Bundle();
-                    bundle.putString("controller", repository.getVersionSetting(selectedVersion).getController());
-                    intent.putExtras(bundle);
-                    LOG.log(Level.INFO, "Start JVMActivity!");
-                    context.startActivity(intent);
-                })).withStage("launch.state.waiting_launching"))
+                            LaunchOptions launchOptions = repository.getLaunchOptions(selectedVersion, javaVersionRef.get(), profile.getGameDir(), javaAgents);
+                            FCLGameLauncher launcher = new FCLGameLauncher(
+                                    context,
+                                    repository,
+                                    version.get(),
+                                    authInfo,
+                                    launchOptions
+                            );
+                            version.get().getLibraries().forEach(library -> {
+                                if (library.getName().startsWith("net.java.dev.jna:jna:")) {
+                                    launcher.setJnaVersion(library.getVersion());
+                                }
+                            });
+                            return launcher;
+                        }).thenComposeAsync(launcher -> { // launcher is prev task's result
+                            return Task.supplyAsync(launcher::launch);
+                        }).thenComposeAsync(fclBridge -> checkPathValid(fclBridge, repository))
+                        .thenComposeAsync(fclBridge -> {
+                            Renderer renderer = RendererManager.getRenderer(repository.getVersionSetting(selectedVersion).getRenderer());
+                            fclBridge.setRenderer(renderer.getName());
+                            return checkRenderer(fclBridge, renderer, repository.getGameVersion(selectedVersion).orElse(""));
+                        }).thenComposeAsync(fclBridge -> checkMod(fclBridge, repository.getGameVersion(selectedVersion).orElse("")))
+                        .thenAcceptAsync(fclBridge -> Schedulers.androidUIThread().execute(() -> {
+                            CallbackBridge.nativeSetUseInputStackQueue(version.get().getArguments().isPresent());
+                            Intent intent = new Intent(context, JVMActivity.class);
+                            fclBridge.setScaleFactor(repository.getVersionSetting(selectedVersion).getScaleFactor() / 100.0);
+                            fclBridge.setController(repository.getVersionSetting(selectedVersion).getController());
+                            fclBridge.setGameDir(repository.getRunDirectory(selectedVersion).getAbsolutePath());
+                            fclBridge.setJava(Integer.toString(javaVersionRef.get().getVersion()));
+                            JVMActivity.setFCLBridge(fclBridge, MenuType.GAME);
+                            Bundle bundle = new Bundle();
+                            bundle.putString("controller", repository.getVersionSetting(selectedVersion).getController());
+                            intent.putExtras(bundle);
+                            LOG.log(Level.INFO, "Start JVMActivity!");
+                            context.startActivity(intent);
+                            if (context.getSharedPreferences("launcher", MODE_PRIVATE).getBoolean("autoExitLauncher", false)) {
+                                Activity activity = FCLApplication.getCurrentActivity();
+                                if (activity != null)
+                                    activity.finish();
+                            }
+                        }))
+                        .withStage("launch.state.waiting_launching"))
                 .withStagesHint(Lang.immutableListOf(
                         "launch.state.java",
                         "launch.state.dependencies",
@@ -260,6 +286,8 @@ public final class LauncherHelper {
                                     message = getLocalizedText(context, "download_failed", url, responseCode);
                             } else if (ex instanceof AccessDeniedException) {
                                 message = getLocalizedText(context, "exception_access_denied", ((AccessDeniedException) ex).getFile());
+                            } else if (ex instanceof ModCheckException) {
+                                message = ((ModCheckException) ex).getReason();
                             } else {
                                 if (ex == null) {
                                     message = "Task failed without exception!";
@@ -284,56 +312,144 @@ public final class LauncherHelper {
         executor.start();
     }
 
-    private void checkMod(FCLBridge bridge) {
-        try {
-            StringBuilder sb = new StringBuilder();
-            Profiles.getSelectedProfile().getRepository().getModManager(Profiles.getSelectedVersion()).getMods().forEach(mod -> {
-                if (!mod.isActive()) {
-                    return;
+    private Task<FCLBridge> checkPathValid(FCLBridge bridge, FCLGameRepository repository) {
+        return Task.composeAsync(() -> {
+            try {
+                CompletableFuture<Task<FCLBridge>> future = new CompletableFuture<>();
+                String path = repository.getVersionJar(selectedVersion).getAbsolutePath();
+                if (ParseUtil.isValidCharacters(path)) {
+                    return Task.completed(bridge);
+                } else {
+                    Schedulers.androidUIThread().execute(() -> new FCLAlertDialog.Builder(context)
+                            .setCancelable(false)
+                            .setMessage(context.getString(R.string.message_check_path_valid, path))
+                            .setPositiveButton(context.getString(R.string.button_cancel), () -> future.completeExceptionally(new CancellationException()))
+                            .setNegativeButton(context.getString(R.string.mod_check_continue), () -> future.complete(Task.completed(bridge))).create().show());
+                    return Task.fromCompletableFuture(future).thenComposeAsync(task -> task);
                 }
-                sb.append(mod.getFileName());
-                sb.append(" | ");
-                sb.append(mod.getId());
-                sb.append(" | ");
-                sb.append(mod.getVersion());
-                sb.append(" | ");
-                sb.append(mod.getModLoaderType());
-                sb.append("\n");
-                if (mod.getId().equals("touchcontroller")) {
-                    bridge.setHasTouchController(true);
+            } catch (Throwable e) {
+                return Task.completed(bridge);
+            }
+        });
+    }
+
+    private Task<FCLBridge> checkRenderer(FCLBridge bridge, Renderer renderer, String version) {
+        return Task.composeAsync(() -> {
+            try {
+                CompletableFuture<Task<FCLBridge>> future = new CompletableFuture<>();
+                if (!version.isEmpty()) {
+                    if (!renderer.getMinMCver().isEmpty()) {
+                        if (VersionNumber.compare(version, renderer.getMinMCver()) < 0) {
+                            Schedulers.androidUIThread().execute(() -> new FCLAlertDialog.Builder(context)
+                                    .setCancelable(false)
+                                    .setMessage(context.getString(R.string.message_check_renderer, renderer.getName()))
+                                    .setPositiveButton(context.getString(R.string.button_cancel), () -> future.completeExceptionally(new CancellationException()))
+                                    .setNegativeButton(context.getString(R.string.mod_check_continue), () -> future.complete(Task.completed(bridge))).create().show());
+                            return Task.fromCompletableFuture(future).thenComposeAsync(task -> task);
+                        }
+                    }
+                    if (!renderer.getMaxMCver().isEmpty()) {
+                        if (VersionNumber.compare(version, renderer.getMaxMCver()) > 0) {
+                            Schedulers.androidUIThread().execute(() -> new FCLAlertDialog.Builder(context)
+                                    .setCancelable(false)
+                                    .setMessage(context.getString(R.string.message_check_renderer, renderer.getName()))
+                                    .setPositiveButton(context.getString(R.string.button_cancel), () -> future.completeExceptionally(new CancellationException()))
+                                    .setNegativeButton(context.getString(R.string.mod_check_continue), () -> future.complete(Task.completed(bridge))).create().show());
+                            return Task.fromCompletableFuture(future).thenComposeAsync(task -> task);
+                        }
+                    }
                 }
-            });
-            bridge.setModSummary(sb.toString());
-        } catch (Throwable ignore) {
-        }
+                return Task.completed(bridge);
+            } catch (Throwable e) {
+                LOG.log(Level.WARNING, "checkRenderer() failed", e);
+                return Task.completed(bridge);
+            }
+        });
+    }
+
+    private Task<FCLBridge> checkMod(FCLBridge bridge, String version) {
+        return Task.composeAsync(() -> {
+            try {
+                StringBuilder modCheckerInfo = new StringBuilder();
+                StringBuilder modSummary = new StringBuilder();
+                ModChecker modChecker = new ModChecker(context, version);
+                int count = 0;
+                for (LocalModFile mod : Profiles.getSelectedProfile().getRepository().getModManager(Profiles.getSelectedVersion()).getMods()) {
+                    if (!mod.isActive()) {
+                        continue;
+                    }
+                    modSummary.append(mod.getFileName());
+                    modSummary.append(" | ");
+                    modSummary.append(mod.getId());
+                    modSummary.append(" | ");
+                    modSummary.append(mod.getVersion());
+                    modSummary.append(" | ");
+                    modSummary.append(mod.getModLoaderType());
+                    modSummary.append("\n");
+                    try {
+                        modChecker.check(bridge, mod);
+                    } catch (ModCheckException e) {
+                        count++;
+                        modCheckerInfo.append(count).append(".").append(e.getReason()).append("\n\n");
+                    }
+                }
+                bridge.setModSummary(modSummary.toString());
+                if (!modCheckerInfo.toString().trim().isEmpty()) {
+                    CompletableFuture<Task<FCLBridge>> future = new CompletableFuture<>();
+                    Schedulers.androidUIThread().execute(() -> {
+                        FCLAlertDialog.Builder builder = new FCLAlertDialog.Builder(context);
+                        builder.setCancelable(false);
+                        builder.setMessage(modCheckerInfo.toString());
+                        builder.setPositiveButton(context.getString(R.string.button_cancel), () -> future.completeExceptionally(new CancellationException()));
+                        builder.setNegativeButton(context.getString(R.string.mod_check_continue), () -> future.complete(Task.completed(bridge)));
+                        builder.create().show();
+                    });
+                    return Task.fromCompletableFuture(future).thenComposeAsync(task -> task);
+                }
+                return Task.completed(bridge);
+            } catch (Throwable e) {
+                LOG.log(Level.WARNING, "CheckMod() failed", e);
+                return Task.completed(bridge);
+            }
+        });
     }
 
     private static Task<JavaVersion> checkGameState(Context context, VersionSetting setting, Version version) {
+        Task<JavaVersion> task = Task.composeAsync(() -> Task.supplyAsync(Schedulers.androidUIThread(), () -> {
+            if (setting.getJava().equals("Auto")) {
+                return JavaManager.getSuitableJavaVersion(version);
+            } else {
+                return JavaManager.getJavaFromVersionName(setting.getJava());
+            }
+        }));
         if (setting.isNotCheckJVM()) {
-            return Task.composeAsync(() -> setting.getJavaVersion(version))
-                    .withStage("launch.state.java");
+            return task.withStage("launch.state.java");
         }
 
-        return Task.composeAsync(() -> setting.getJavaVersion(version))
-                .thenComposeAsync(javaVersion -> Task.allOf(Task.completed(javaVersion), Task.supplyAsync(() -> JavaVersion.getSuitableJavaVersion(version))))
+        return task.thenComposeAsync(javaVersion -> Task.allOf(Task.completed(javaVersion), Task.supplyAsync(() -> JavaVersion.getSuitableJavaVersion(version))))
                 .thenComposeAsync(Schedulers.androidUIThread(), javaVersions -> {
                     JavaVersion javaVersion = (JavaVersion) javaVersions.get(0);
                     JavaVersion suggestedJavaVersion = (JavaVersion) javaVersions.get(1);
-                    if (setting.getJava().equals(JavaVersion.JAVA_AUTO.getVersionName()) || javaVersion.getVersion() == suggestedJavaVersion.getVersion()) {
-                        return Task.completed(suggestedJavaVersion);
+                    if (setting.getJava().equals("Auto") || javaVersion.getVersion() == suggestedJavaVersion.getVersion()) {
+                        return Task.completed(setting.getJava().equals("Auto") ? suggestedJavaVersion : javaVersion);
                     }
 
                     CompletableFuture<JavaVersion> future = new CompletableFuture<>();
                     Runnable continueAction = () -> future.complete(javaVersion);
-                    FCLAlertDialog.Builder builder = new FCLAlertDialog.Builder(context);
-                    builder.setCancelable(false);
-                    builder.setMessage(context.getString(R.string.launch_error_java));
-                    builder.setPositiveButton(context.getString(R.string.launch_error_java_auto), () -> {
-                        setting.setJava(JavaVersion.JAVA_AUTO.getVersionName());
-                        future.complete(suggestedJavaVersion);
-                    });
-                    builder.setNegativeButton(context.getString(R.string.launch_error_java_continue), continueAction::run);
-                    builder.create().show();
+                    new FCLAlertDialog.Builder(context)
+                            .setCancelable(false)
+                            .setMessage(context.getString(R.string.launch_error_java))
+                            .setPositiveButton(context.getString(R.string.launch_error_java_auto), () -> {
+                                setting.setJava(JavaVersion.JAVA_AUTO.getName());
+                                future.complete(suggestedJavaVersion);
+                            })
+                            .setNegativeButton(context.getString(R.string.launch_error_java_continue), continueAction::run)
+                            .setNeutralButton(context.getString(R.string.launch_error_java_continue_disable), () -> {
+                                setting.setNotCheckJVM(true);
+                                continueAction.run();
+                            })
+                            .create()
+                            .show();
                     return Task.fromCompletableFuture(future);
                 }).withStage("launch.state.java");
     }

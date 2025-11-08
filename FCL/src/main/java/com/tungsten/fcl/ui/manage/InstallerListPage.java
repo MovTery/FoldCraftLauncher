@@ -86,7 +86,7 @@ public class InstallerListPage extends FCLCommonPage implements ManageUI.Version
         CompletableFuture.supplyAsync(() -> {
             gameVersion = profile.getRepository().getGameVersion(version).orElse(null);
 
-            return LibraryAnalyzer.analyze(profile.getRepository().getResolvedPreservingPatchesVersion(versionId));
+            return LibraryAnalyzer.analyze(profile.getRepository().getResolvedPreservingPatchesVersion(versionId), gameVersion);
         }).thenAcceptAsync(analyzer -> {
             Function<String, Runnable> removeAction = libraryId -> () -> profile.getDependency().removeLibraryAsync(version, libraryId)
                     .thenComposeAsync(profile.getRepository()::saveAsync)
@@ -101,18 +101,19 @@ public class InstallerListPage extends FCLCommonPage implements ManageUI.Version
 
             InstallerItem.InstallerItemGroup group = new InstallerItem.InstallerItemGroup(getContext(), gameVersion);
 
-            // Conventional libraries: game, fabric, quilt, forge, neoforge, liteloader, optifine
+            // Conventional libraries: game, fabric, quilt, forge, neoforge, liteloader, optifine, cleanroom
             for (InstallerItem installerItem : group.getLibraries()) {
                 String libraryId = installerItem.getLibraryId();
+                String libraryVersion = analyzer.getVersion(libraryId).orElse(null);
+                boolean libraryConfigurable = libraryVersion != null && analyzer.getLibraryStatus(libraryId) == LibraryAnalyzer.LibraryMark.LibraryStatus.CLEAR;
 
                 // Skip fabric-api and quilt-api
                 if (libraryId.contains("fabric-api") || libraryId.contains("quilt-api")) {
                     continue;
                 }
 
-                String libraryVersion = analyzer.getVersion(libraryId).orElse(null);
                 installerItem.libraryVersion.set(libraryVersion);
-                installerItem.upgradable.set(libraryVersion != null);
+                installerItem.upgradable.set(libraryConfigurable);
                 installerItem.installable.set(true);
                 installerItem.action.set(() -> {
                     InstallerVersionPage page = new InstallerVersionPage(getContext(), PageManager.PAGE_ID_TEMP, getParent(), R.layout.page_install_version, gameVersion, libraryId, remoteVersion -> {
@@ -131,7 +132,7 @@ public class InstallerListPage extends FCLCommonPage implements ManageUI.Version
                     });
                     ManagePageManager.getInstance().showTempPage(page);
                 });
-                boolean removable = !"game".equals(libraryId) && libraryVersion != null;
+                boolean removable = !LibraryAnalyzer.LibraryType.MINECRAFT.getPatchId().equals(libraryId) && libraryConfigurable;
                 installerItem.removable.set(removable);
                 if (removable) {
                     Runnable action = removeAction.apply(libraryId);

@@ -21,8 +21,11 @@ public class LocaleUtils {
      * 4: Vietnamese
      */
     public static Locale RUSSIAN = new Locale("ru");
-    public static Locale BRAZILIAN_PORTUGUESE = new Locale("pt","BR");
+    public static Locale BRAZILIAN_PORTUGUESE = new Locale("pt", "BR");
     public static Locale PERSIAN = new Locale("fa");
+    public static Locale UKRAINIAN = new Locale("uk");
+    public static Locale GERMAN = new Locale("de");
+    public static Locale HK = new Locale("zh", "HK");
 
     private static DateTimeFormatter dateTimeFormatter;
 
@@ -69,6 +72,12 @@ public class LocaleUtils {
                 return BRAZILIAN_PORTUGUESE;
             case 5:
                 return PERSIAN;
+            case 6:
+                return UKRAINIAN;
+            case 7:
+                return GERMAN;
+            case 8:
+                return HK;
             default:
                 return getSystemLocale();
         }

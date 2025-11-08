@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 
 public class Version implements Comparable<Version>, Validation {
 
-    private final String id;
+    private String id;
     private final String version;
     private final Integer priority;
     private final String minecraftArguments;
@@ -133,6 +133,10 @@ public class Version implements Comparable<Version>, Validation {
 
     public String getId() {
         return id;
+    }
+
+    public void _setId(String id) {
+        this.id = id;
     }
 
     /**
@@ -325,7 +329,10 @@ public class Version implements Comparable<Version>, Validation {
             }
         }
 
-        if (patches != null && !patches.isEmpty()) {
+        if (patches == null) {
+            // This is a version from external launcher. NO need to resolve the patches.
+            return thisVersion;
+        } else if (!patches.isEmpty()) {
             // Assume patches themselves do not have patches recursively.
             List<Version> sortedPatches = patches.stream()
                     .sorted(Comparator.comparing(Version::getPriority))
